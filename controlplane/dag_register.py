@@ -1,0 +1,19 @@
+
+import requests
+import sys
+import json
+
+def server():
+    url = "http://10.129.28.219:5001/register/dag"
+    input_json_file = open(sys.argv[1])
+    params = json.load(input_json_file)
+    reply = requests.post(url = url,json = params,verify=False)
+    print(reply.json())
+
+
+def main():
+    server()
+
+if __name__=="__main__":
+    main()
+

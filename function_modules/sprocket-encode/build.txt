@@ -1,0 +1,3 @@
+sudo ./buildAndPush.sh 10.129.28.219:5000/encode-image-1
+wsk -i action create encode-action --docker 10.129.28.219:5000/encode-image-1
+wsk -i action update encode-action --docker 10.129.28.219:5000/encode-image-1 encode.py --timeout 400000
