@@ -180,9 +180,9 @@ if __name__=="__main__":
 
 <h3>Supported DAG Primitive</h3>
 
-<!-- ![SUPPORTED DAG PRIMITIVES](../controlplane/images/dag_primitives.png) -->
+<!-- ![SUPPORTED DAG PRIMITIVES](./controlplane/images/dag_primitives.png) -->
 
-<img src="/home/faasapp/Desktop/anubhav/controlplane/images/dag_primitives.png" alt="dag_primitive" style="width:700px;height:500px;">
+<img src="./controlplane/images/dag_primitives.png" alt="dag_primitive" style="width:700px;height:500px;">
 
 
 <h2>Accepted DAG Format</h2>
