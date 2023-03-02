@@ -266,7 +266,7 @@ DAG specification includes both control dependancy as well as the control depend
 <h2>Sample Example Usage</h2>
 
 <!-- ![Odd-Even-Test](/home/faasapp/Desktop/anubhav/controlplane/images/odd-even-test-dag.png) -->
-<img src="/home/faasapp/Desktop/anubhav/controlplane/images/odd-even-test-dag.png" alt="odd-even-action" style="width:700px;height:500px;">
+<img src="./controlplane/images/odd-even-test-dag.png" alt="odd-even-action" style="width:700px;height:500px;">
 
 
 {
