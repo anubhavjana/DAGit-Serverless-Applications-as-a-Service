@@ -16,7 +16,6 @@ from requests.packages.urllib3.exceptions import InsecureRequestWarning
 from flask import Flask, request,jsonify,send_file
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 import pymongo
-import shutil
 
 
 app = Flask(__name__)
