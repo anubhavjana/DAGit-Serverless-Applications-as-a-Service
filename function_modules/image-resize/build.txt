@@ -1,0 +1,3 @@
+sudo ./buildAndPush.sh 10.129.28.219:5000/image-resize-image
+wsk -i action create image-resize --docker 10.129.28.219:5000/image-resize-image --web=true --timeout=300000
+./register.sh /image-resize-api /image-resize-path image-blur --response-type=json

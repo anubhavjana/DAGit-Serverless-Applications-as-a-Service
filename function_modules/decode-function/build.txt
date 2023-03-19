@@ -1,0 +1,2 @@
+sudo ./buildAndPush.sh 10.129.28.219:5000/decode-function-image
+wsk -i action create decode --docker 10.129.28.219:5000/decode-function-image --web=true --timeout=300000

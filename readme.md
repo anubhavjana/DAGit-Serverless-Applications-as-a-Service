@@ -182,7 +182,7 @@ if __name__=="__main__":
 
 <!-- ![SUPPORTED DAG PRIMITIVES](/home/faasapp/Desktop/anubhav/controlplane/images/dag_primitives.png) -->
 
-<img src="/home/faasapp/Desktop/anubhav/controlplane/images/dag_primitives.png" alt="dag_primitive" style="width:700px;height:500px;">
+<img src="./controlplane/images/dag_primitives.png" alt="dag_primitive" style="width:700px;height:500px;">
 
 
 <h2>Accepted DAG Format</h2>
@@ -266,7 +266,7 @@ DAG specification includes both control dependancy as well as the control depend
 <h2>Sample Example Usage</h2>
 
 <!-- ![Odd-Even-Test](/home/faasapp/Desktop/anubhav/controlplane/images/odd-even-test-dag.png) -->
-<img src="/home/faasapp/Desktop/anubhav/controlplane/images/odd-even-test-dag.png" alt="odd-even-action" style="width:700px;height:500px;">
+<img src="./controlplane/images/odd-even-test-dag.png" alt="odd-even-action" style="width:700px;height:500px;">
 
 
 {
@@ -405,50 +405,3 @@ op_2 = params["__ow_body"][1]["key_action_2"]
 Use these op_1 and op_2 to process
 
 ##############################################
-
-<h2>MongoDB - DAG Store</h2>
-
-DAG Registration stores the given dag specification to a mongodb database named <span style="text-decoration: underline; color: red;">dag_store</span> and collection named  <span style="text-decoration: underline; color: red;">dags</span>
-
-<h5> Using mongo </h5>
-
-* sudo service mongodb start: Starts the mongodb service
-
-* mongo: Starts the mongo shell
-
-* show dbs: Lists all databases
-
-* use dag_store: Creates (if not present) and switches to this database
-
-* db: View the current database
-
-
-## Sample usage ##
-
-use dag_store
-
-db.dag_metadata.deleteOne({"_id" : ObjectId("63f523cac540a53983362751")})
-
-db.dags.deleteOne({"_id" : ObjectId("63f523cac540a53983362751")})
-
-db.dags.find()
-
-db.dag_metadata.find()
-
-db.dags.find({},{"_id": 1,"name":1})
-
-db.dags.find("name":"odd-even-test-2")
-
-use function_store
-
-db.functions.find()
-
-db.functions.deleteOne({"_id" : ObjectId("63fb33dd52f32fb6cb755517")})
-
-use trigger_store
-
-db.triggers.find()
-
-db.triggers.deleteOne({"_id" : ObjectId("6400b57040aa62f477087c07")})
-
-

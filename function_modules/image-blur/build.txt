@@ -1,0 +1,3 @@
+sudo ./buildAndPush.sh 10.129.28.219:5000/image-blur-image
+wsk -i action create image-blur --docker 10.129.28.219:5000/image-blur-image --web=true --timeout=300000
+./register.sh /image-blur-api /image-blur-path image-blur --response-type=json

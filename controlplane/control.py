@@ -18,6 +18,8 @@ requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 import pymongo
 import shutil
 
+import trigger_gateway
+
 
 app = Flask(__name__)
 
@@ -27,14 +29,9 @@ responses = []
 queue = []
 list_of_func_ids = [] 
 
+def hello():
+    print("Hello")
 
-# def combine_json_files(files_list): #2 json files cant have same the same key. will lead to ambiguity
-#     combined_data = {}
-#     for file in files_list:
-#         with open(file, "r") as f:
-#             data = json.load(f)
-#             combined_data.update(data)
-#     return combined_data
 
 def preprocess(filename):
     with open(filename) as f:
@@ -56,8 +53,6 @@ def execute_thread(action,redis,url,json):
     redis.set(action+"-output",pickle.dumps(reply.json()))
     responses.append(reply.json())
     
-
-
 
 def handle_parallel(queue,redis,action_properties_mapping,parallel_action_list):
     thread_list = []
@@ -123,7 +118,7 @@ def submit_dag_metadata(dag_metadata):
     mycol = mydb["dag_metadata"]
     try:
         cursor = mycol.insert_one(dag_metadata)
-        print("OBJECT ID GENERATED",cursor.inserted_id)
+        # print("OBJECT ID GENERATED",cursor.inserted_id)
         data = {"message":"success"}
         return json.dumps(data)
     except Exception as err:
@@ -135,7 +130,7 @@ def home():
     data = {"message": "Hello,welcome to create and manage serverless workflows.","author":"Anubhav Jana"}
     return jsonify(data)
 
-@app.route('/list/actions', methods=['GET'])
+@app.route('/view/functions', methods=['GET'])
 def list_actions():
     list_of_actions = []
     stream = os.popen(' wsk -i action list')
@@ -216,8 +211,15 @@ def register_function(function_name):
 
     # wait for process to complete and get output
     output, errors = process.communicate()
+    print("OUTPUT---------",output)
+    print("ERRORS---------",errors)
+    # if(errors):
+    #     print("There is error building docker file")
+    #     data = {"message":"fail","reason":"docker build failed"}
+    #     return json.dumps(data)
+    # else:
 
-    # create action, register action with api, populate its mapping
+        # create action, register action with api, populate its mapping
     subprocess.call(['./create_action.sh',destination,docker_image_name,function_name])
     subprocess.call(['./register.sh',api_name,path_name,function_name])
     subprocess.call(['bash', './actions.sh'])
@@ -235,11 +237,11 @@ def register_function(function_name):
         data = {"message":"fail","reason":e}
         return json.dumps(data)
 
-    # data = {"message":"success"}
-    # return json.dumps(data)
+        # data = {"message":"success"}
+        # return json.dumps(data)
 
 
-@app.route('/register/dag',methods=['POST'])
+@app.route('/register/dag/',methods=['POST'])
 def register_dag():
     dag_json = request.json
     myclient = pymongo.MongoClient("mongodb://127.0.0.1/27017")
@@ -270,7 +272,7 @@ def view_dag(dag_name):
     
     dag_info_map["Number_of_nodes-->"] = len(dag_info_list)
     dag_info_map["Starting_Node-->"] = dag_info_list[0]["node_id"]
-   
+
     for dag_items in dag_info_list:
         node_info_map = {}
         if(len(dag_items["properties"]["outputs_from"])==0):
@@ -305,6 +307,38 @@ def view_dags():
     # Format the JSON string with indentation
     formatted_json = json.dumps(data, indent=4)
     return formatted_json
+
+@app.route('/view/triggers',methods=['GET'])
+def view_triggers():
+    myclient = pymongo.MongoClient("mongodb://127.0.0.1/27017")
+    mydb = myclient["trigger_store"]
+    mycol = mydb["triggers"]
+    document = mycol.find()
+    data = list(document)
+    # Serialize the data to JSON
+    json_data = json.dumps(data, default=str)
+    json_string ='{"trigger":'+str(json_data)+'}'
+    data = json.loads(json_string)
+    # Format the JSON string with indentation
+    formatted_json = json.dumps(data, indent=4)
+    return formatted_json
+
+@app.route('/view/trigger/<trigger_name>',methods=['GET'])
+def view_trigger(trigger_name):
+    print(request.url)
+    myclient = pymongo.MongoClient("mongodb://127.0.0.1/27017")
+    mydb = myclient["trigger_store"]
+    mycol = mydb["triggers"]
+    query = {"trigger_name":trigger_name}
+    projection = {"_id": 0,"trigger_name":1,"type":1,"trigger":1,"dags":1,"functions":1}
+    document = mycol.find(query,projection)
+    data = list(document)
+    # print(data)
+    json_data = json.dumps(data, default=str)
+    json_string ='{"trigger":'+str(json_data)+'}'
+    data = json.loads(json_string)
+    formatted_json = json.dumps(data, indent=4)
+    return formatted_json
     
 # EXAMPLE URL: http://10.129.28.219:5001/view/activation/8d7df93e8f2940b8bdf93e8f2910b80f
 @app.route('/view/activation/<activation_id>', methods=['GET', 'POST'])
@@ -319,7 +353,11 @@ def list_activations(activation_id):
     d["duration"] = res["duration"]
     d["status"] = res["response"]["status"]
     d["result"] = res["response"]["result"]
-    return json.dumps(d)
+    return({"action_name":res["name"],
+            "duration": res["duration"],
+            "status": res["response"]["status"],
+            "result":res["response"]["result"]
+        })
 
 # EXAMPLE URL: http://10.129.28.219:5001/view/76cc8a53-0a63-47bb-a5b5-9e6744f67c61
 @app.route('/view/<dag_id>',methods=['GET'])
@@ -334,22 +372,24 @@ def view_dag_metadata(dag_id):
     response = {"dag_metadata":data}
     return json.dumps(response)
 
-# EXAMPLE URL: http://10.129.28.219:5001/run/action/odd-even-action/{"number":16}
-@app.route('/run/action/<action_name>/<param_json>', methods=['GET', 'POST'])
-def execute_action(action_name,param_json):
+# EXAMPLE URL: http://10.129.28.219:5001/run/action/odd-even-action
+# http://10.129.28.219:5001/run/action/decode-function
+
+@app.route('/run/action/<action_name>/', methods=['POST'])
+def execute_action(action_name):
     script_file = './actions.sh'
     subprocess.call(['bash', script_file])
     preprocess("action_url.txt")
     url = action_url_mappings[action_name]
-    json_data = json.loads(param_json)
-    reply = requests.post(url = url,json = json_data,verify=False)
+    # json_data = json.loads(request.json)
+    reply = requests.post(url = url,json = request.json,verify=False)
     return reply.json()
 
 
     
 # EXAMPLE URL: http://10.129.28.219:5001/run/dag/odd-even-test/{"number":16}
-@app.route('/run/dag/<dag_name>/<param_json>', methods=['GET', 'POST'])
-def execute_dag(dag_name,param_json):
+@app.route('/run/dag/<dag_name>/', methods=['GET', 'POST'])
+def execute_dag(dag_name):
     print("------------------------------------DAG START-----------------------------------------------")
     unique_id = uuid.uuid4()
     print("DAG UNIQUE ID----------",unique_id)
@@ -379,7 +419,7 @@ def execute_dag(dag_name,param_json):
     for dag_item in dag_data:
         if(flag==0): # To indicate the first action in the DAG
             queue.append(dag_item["node_id"])
-            action_properties_mapping[dag_item["node_id"]]["arguments"] = json.loads(param_json)
+            action_properties_mapping[dag_item["node_id"]]["arguments"] = request.json
         while(len(queue)!=0):
             flag=flag+1
             action = queue.pop(0)
@@ -477,18 +517,18 @@ def execute_dag(dag_name,param_json):
                 
                     
     dag_metadata["function_activation_ids"] = list_of_func_ids       
-    print("DAG SPEC AFTER WORKFLOW EXECUTION--------\n")
-    print(action_properties_mapping)
-    print('\n')
+    # print("DAG SPEC AFTER WORKFLOW EXECUTION--------\n")
+    # print(action_properties_mapping)
+    # print('\n')
     submit_dag_metadata(dag_metadata)
-    print("DAG ID---->FUNC IDS",dag_metadata)
+    # print("DAG ID---->FUNC IDS",dag_metadata)
     print('\n')
-    print('INTERMEDIATE OUTPUTS FROM ALL ACTIONS-----\n')
-    get_redis_contents(redis_instace)
-    print('\n')
+    # print('INTERMEDIATE OUTPUTS FROM ALL ACTIONS-----\n')
+    # get_redis_contents(redis_instace)
+    # print('\n')
     redis_instace.flushdb()
     print("Cleaned up in-memory intermediate outputs successfully\n")
-    print("------------------------DAG END-----------------------------------")
+    
     if(isinstance(reply,list)):
         return({"dag_id": dag_metadata["dag_id"],
                 "result": reply
