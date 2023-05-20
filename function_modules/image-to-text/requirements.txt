@@ -1,0 +1,7 @@
+requests
+redis
+torch
+pilgram
+Pillow==6.2.2
+zlib-state
+transformers

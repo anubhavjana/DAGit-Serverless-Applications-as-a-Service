@@ -1,0 +1,9 @@
+sudo ./buildAndPush.sh 10.129.28.219:5000/img-text
+
+wsk -i action create img-to-text --docker 10.129.28.219:5000/img-text img_text.py --web=true --timeout=300000
+
+./register.sh /image-text-api /image-text-path img-to-text --response-type=json
+
+wsk -i action update img-to-text --docker 10.129.28.219:5000/img-text img_text.py --timeout 300000
+
+

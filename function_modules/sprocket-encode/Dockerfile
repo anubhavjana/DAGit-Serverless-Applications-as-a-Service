@@ -13,11 +13,7 @@ RUN apk --update add --virtual build-dependencies libffi-dev openssl-dev python-
 && apk add jpeg-dev zlib-dev libjpeg \
 && pip install --upgrade pip 
 
-
-RUN apk add ffmpeg
-
 RUN pip install opencv-python
-
 
 RUN cd /action; pip install -r requirements.txt
 

@@ -49,5 +49,33 @@ redis-input.json
 
 flask_test.py
 
+data1/
+data2/
+data3/
+data4/
+data5/
 
+test.py
+
+internet.sh
+
+img_to_text.py
+
+iluvatar-faas/
+
+save_hg*
+
+minio
+
+.env
+
+minio_test.py
+
+controlplane/__pycache__/trigger_gateway.cpython-38.pyc
+
+controlplane/.env
+
+controlplane/tests3.py
+
+function_modules/testaction/test.py
 

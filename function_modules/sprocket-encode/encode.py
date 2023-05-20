@@ -1,75 +1,62 @@
 #!/usr/bin/env python3
-import ffmpeg
 import cv2
 import time
-from io import BytesIO
 import os
 import sys
 import redis
 import pickle
 import json
-from PIL import Image
-import pysftp
-import logging
+import boto3
+import requests
 
-logging.basicConfig(level=logging.INFO)
 
 def main():
-    print("Inside encode\n")
-    import time as time1
-    start = time1.time()
-    cnopts = pysftp.CnOpts()
-    cnopts.hostkeys = None
-    try:
-
-        sftp = pysftp.Connection(
-            host="10.129.28.219", 
-            username="faasapp",
-            password="1234",
-            cnopts=cnopts
-        )
-        logging.info("connection established successfully")
-    except:
-        logging.info('failed to establish connection to targeted server')
-
-
-    filtered_dir = "filtered-images"
-    is_images_dir = os.path.isdir(filtered_dir)
-    if(is_images_dir == False):
-        os.mkdir(filtered_dir)
-
-    remote_path = "/home/faasapp/Desktop/anubhav/sprocket-filter/"+filtered_dir
-    remote_upload_path = "/home/faasapp/Desktop/anubhav/sprocket-encode/"+filtered_dir
-    try:
-        sftp.chdir(remote_path)  # Test if remote_path exists
-    except IOError:
-        sftp.mkdir(remote_path)  # Create remote_path
-        sftp.chdir(remote_path)
-
-    try:
-        sftp.chdir(remote_upload_path)  # Test if remote_path exists
-    except IOError:
-        sftp.mkdir(remote_upload_path)  # Create remote_path
-        sftp.chdir(remote_upload_path)
-    current_path = os.getcwd()
-
-    sftp.get_d(remote_path,preserve_mtime=True,localdir=filtered_dir)
-    
-    sftp.put_d(current_path+"/"+filtered_dir,preserve_mtime=True,remotepath=remote_upload_path)
-
-    # print("Current Path",current_path)
-    
-    path = current_path+"/"+filtered_dir+"/"
-
-    output_path="output.avi"
-
+    # filtered_dir = "filtered-images"
+    # is_images_dir = os.path.isdir(filtered_dir)
+    # if(is_images_dir == False):
+    #     os.mkdir(filtered_dir)
+    # output_path="output.avi"
+    r = redis.Redis(host="10.129.28.219", port=6379, db=2)
+    activation_id = os.environ.get('__OW_ACTIVATION_ID')
+    params = json.loads(sys.argv[1])
     images = []
+    try:
+        bilateral_activation_id = params["activation_id"]
+        parts = params["parts"]
+        # for i in range(0,parts):
+        #     if os.path.exists(images_dir+'/resized_image_'+str(i)+'.jpg'):
+        #         os.remove(images_dir+'/resized_image_'+str(i)+'.jpg')
+        for i in range(0,parts):
+            bilateral_output = "bilateral-output-image"+bilateral_activation_id+"-"+str(i)
+            load_image = pickle.loads(r.get(bilateral_output))
+            image_name = 'Image'+str(i)+'.jpg'
+            
+            with open(image_name, 'wb') as f:
+                f.write(load_image)
+            images.append(image_name)
+            
+            
+            # img =  cv2.imread(image_name)
+            
+            # resized_result.append('resized_image_'+str(i)+'.jpg')
 
-    input_images = os.listdir(path)
+    except Exception as e:
+        image_url_list = params["image_url_links"]
+        parts = len(image_url_list)
+        for i in range(0,parts):
+            response = requests.get(image_url_list[i])
+            image_name = 'Image'+str(i)+'.jpg'
+            with open(image_name, "wb") as f:
+                f.write(response.content)
+            images.append(image_name)
+            
+            
 
-    for i in input_images:
-        i=path+i
-        images.append(i)
+    # input_images = os.listdir(path)
+
+    # for i in input_images:
+    #     i=path+i
+    #     images.append(i)
 
     images.sort()
 
@@ -89,36 +76,24 @@ def main():
         print('frame',i+1,'of',len(images))
    
     video.release()
-   
-    output_video_size = os.stat(output_path).st_size
-    upload_path =  "/home/faasapp/Desktop/anubhav/sprocket-decode/output.avi"
-    current_files = os.listdir('.')
-    sftp.put(output_path,preserve_mtime=True,remotepath=upload_path)
-    
-    
-    # r = redis.Redis(host="10.129.28.219", port=6379, db=2)
-    
-    activation_id = os.environ.get('__OW_ACTIVATION_ID')
-    params = json.loads(sys.argv[1])
-    decode_execution_time = params["exec_time_decode"]
-    #print(decode_execution_time)
-    filter_execution_time = params["exec_time_filter"]
-    # print(filter_execution_time)
-    parts = params["parts"]
-    
-    end = time1.time()
 
-    exec_time = end-start
-    total_time = decode_execution_time + filter_execution_time + exec_time
-    print(json.dumps({ "encode_output": output_path,
-                        "number_of_images_processed": parts,
-                        "activation_id": str(activation_id),
-                        "exec_time_filter": filter_execution_time,
-                        "exec_time_decode": decode_execution_time,
-                        "exec_time_encode": exec_time,
-                        "workflow_execution_time": total_time,
-                        "output_video_size_in_bytes": output_video_size
-                        #"params":params
+    aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
+    aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+    aws_region = os.getenv('AWS_REGION')
+    
+    bucket_name = 'dagit-store'
+
+    s3 = boto3.client('s3', aws_access_key_id=aws_access_key_id,aws_secret_access_key=aws_secret_access_key,region_name=aws_region)
+
+    s3.upload_file('output.avi', bucket_name, 'output.avi')
+    s3.put_object_acl(Bucket=bucket_name, Key='output.avi', ACL='public-read')
+
+
+    url = "https://dagit-store.s3.ap-south-1.amazonaws.com/output.avi"
+   
+    print(json.dumps({"encode_output": url,
+                    "activation_id": activation_id,
+                    "number_of_images_processed": parts,
                     }))
 
 
