@@ -1,2 +1,7 @@
 sudo ./buildAndPush.sh 10.129.28.219:5000/decode-function-image
-wsk -i action create decode --docker 10.129.28.219:5000/decode-function-image --web=true --timeout=300000
+wsk -i action create decode-function --docker 10.129.28.219:5000/decode-function-image --web=true --timeout=420000 -m 4096
+wsk -i action update decode-function --docker 10.129.28.219:5000/decode-function-image decode.py --timeout 300000
+
+./register.sh /decode-function /decode decode-function
+
+    // "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",

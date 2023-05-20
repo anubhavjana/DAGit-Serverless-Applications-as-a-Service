@@ -1,6 +1,6 @@
 <h1> DAGit </h1>
 
-<p><h3>Currently being developed by Anubhav Jana, IITB</h3></p>
+<p><h3>Currently being developed by Anubhav Jana along with Prof Puru IITB</h3></p>
 
 <h4>This serverless FaaS platform supports individual function registrations, DAG registrations, Trigger registrations associated with DAGs/functons. This platform also supports various DAG primitives which is provided in this document for reference.</h4>
 
@@ -105,7 +105,6 @@ DAG specification includes both control dependancy as well as the control depend
 {
     "trigger_name": "mydagtrigger",
     "type":"dag",
-    "trigger":"/run/<dag_name>/<param_json>",
     "dags": ["odd-even-test","dummy-dag"],
     "functions":""
 }
@@ -114,7 +113,6 @@ DAG specification includes both control dependancy as well as the control depend
 {
     "trigger_name": "myfunctiontrigger",
     "type":"function",
-    "trigger":"/run/action/<action_name>/<param_json>",
     "dags":"",
     "functions": ["odd-even-action"]
 }
@@ -156,11 +154,8 @@ if __name__=="__main__":
 
 * http://10.129.28.219:5001/register/function/<function_name>
 
-* http://10.129.28.219:5001/run/dummy-dag/\{\"number":16\}\
+* http://10.129.28.219:5001/run/<trigger_name>
 
-* http://10.129.28.219:5001/run/odd-even-test/\{\"number":16\}\
-
-* http://10.129.28.219:5001/action/odd-even-action/\{\"number":16\}\
 
 * http://10.129.28.219:5001/view/<dag_id>
 
@@ -168,19 +163,17 @@ if __name__=="__main__":
 
 * http://10.129.28.219:5001/view/dags
 
-* http://10.129.28.219:5001/view/dag/odd-even-test-2
+* http://10.129.28.219:5001/view/dag/<dag_name>
 
 * http://10.129.28.219:5001/register/dag
 
-* http://10.129.28.219:5001/list/actions
-
-* http://10.129.28.219:5001/view/dag/primitives
+* http://10.129.28.219:5001/view/functions
 
 * http://10.129.28.219:5001/
 
 <h3>Supported DAG Primitive</h3>
 
-<!-- ![SUPPORTED DAG PRIMITIVES](/home/faasapp/Desktop/anubhav/controlplane/images/dag_primitives.png) -->
+<!-- ![SUPPORTED DAG PRIMITIVES](./controlplane/images/dag_primitives.png) -->
 
 <img src="./controlplane/images/dag_primitives.png" alt="dag_primitive" style="width:700px;height:500px;">
 
@@ -404,4 +397,8 @@ op_2 = params["__ow_body"][1]["key_action_2"]
 
 Use these op_1 and op_2 to process
 
+<<<<<<< HEAD
 ##############################################
+=======
+##############################################
+>>>>>>> 544c0a4dc690739a0fe08a2b7a830d804bb9f647

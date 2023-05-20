@@ -9,12 +9,20 @@ import json
 import sys
 import ffmpeg
 import boto3
+import requests
+import shutil
 from botocore.exceptions import ClientError
 
 
 from urllib.request import urlopen,urlretrieve
 
 logging.basicConfig(level=logging.INFO)
+
+def download_video(url, file_name):
+    # Download the file
+    with requests.get(url, stream=True) as r:
+        with open(file_name, 'wb') as f:
+            shutil.copyfileobj(r.raw, f)
 
 
 def main():
@@ -28,8 +36,9 @@ def main():
     dwn_link = params["filename"]
     # Set how many spots you want to extract a video from. 
     parts = params["parts"]
-    file_name = 'decode_video.mp4' 
-    urlretrieve(dwn_link, file_name)
+    file_name = 'decode_video.mp4'
+    download_video(dwn_link, file_name) 
+    # urlretrieve(dwn_link, file_name)
     is_images_dir = os.path.isdir(images_dir)
     if(is_images_dir == False):
         os.mkdir(images_dir)
