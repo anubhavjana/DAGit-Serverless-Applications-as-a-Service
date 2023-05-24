@@ -27,6 +27,7 @@ responses = []
 queue = []
 list_of_func_ids = [] 
 dag_responses = []
+function_responses = []
 
 x = 10
 
@@ -113,21 +114,20 @@ def submit_dag_metadata(dag_metadata):
 
 
 
-def execute_action(action_name):
+def execute_action(action_name,request):
     script_file = './actions.sh'
     subprocess.call(['bash', script_file])
     preprocess("action_url.txt")
     url = action_url_mappings[action_name]
-    # print(request.json)
-    # json_data = json.loads(request.json)
-    reply = requests.post(url = url,json = request.json,verify=False)
-    return reply.json()
+    reply = requests.post(url = url,json = request,verify=False)
+    function_responses.append(reply.json())
+    
 
 
     
-def execute_dag(dag_name):
+def execute_dag(dag_name,request):
     
-    print("------------------------------------DAG START-----------------------------------------------")
+    # print("------------------------------------DAG START-----------------------------------------------")
     unique_id = uuid.uuid4()
     print("DAG UNIQUE ID----------",unique_id)
     dag_metadata={}
@@ -156,7 +156,7 @@ def execute_dag(dag_name):
     for dag_item in dag_data:
         if(flag==0): # To indicate the first action in the DAG
             queue.append(dag_item["node_id"])
-            action_properties_mapping[dag_item["node_id"]]["arguments"] = request.json
+            action_properties_mapping[dag_item["node_id"]]["arguments"] = request
         while(len(queue)!=0):
             flag=flag+1
             action = queue.pop(0)
@@ -254,15 +254,12 @@ def execute_dag(dag_name):
                 
                     
     dag_metadata["function_activation_ids"] = list_of_func_ids       
-    # print("DAG SPEC AFTER WORKFLOW EXECUTION--------\n")
-    # print(action_properties_mapping)
-    # print('\n')
+    
     submit_dag_metadata(dag_metadata)
+
     print("DAG ID---->FUNC IDS",dag_metadata)
     print('\n')
-    # print('INTERMEDIATE OUTPUTS FROM ALL ACTIONS-----\n')
-    # get_redis_contents(redis_instace)
-    # print('\n')
+    
     redis_instace.flushdb()
     print("Cleaned up in-memory intermediate outputs successfully\n")
     

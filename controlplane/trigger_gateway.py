@@ -271,7 +271,6 @@ def view_dag_metadata(dag_id):
 # EXAMPLE URL: http://10.129.28.219:5001/run/action/odd-even-action
 # http://10.129.28.219:5001/run/action/decode-function
 
-# @app.route('/run/action/<action_name>/', methods=['POST'])
 def execute_action(action_name):
     try:
         res = orchestrator.execute_action(action_name)
@@ -281,61 +280,55 @@ def execute_action(action_name):
         data = {"status": 404 ,"failure_reason":e}
         return data
 
-    
+
     
 # EXAMPLE URL: http://10.129.28.219:5001/run/dag/odd-even-test/{"number":16}
 @app.route('/run/<trigger_name>', methods=['GET', 'POST'])
 def orchestrate_dag(trigger_name):
+    
     try:
-        triggers = validate_trigger.get_trigger_json(trigger_name)
-        # print(triggers)
-        if(len(triggers)==0): #could not fetch registered trigger
-            return {"response": "the given trigger is not registered in DAGit trigger store"}
-        else:
-            thread_list = []
-            result_queue = queue.Queue()
-            if(triggers[0]['type']=='dag'):
-                dags = triggers[0]['dags']
-                try:
-
-                    for dag in dags:
-                        thread_list.append(threading.Thread(target=orchestrator.execute_dag, args=[dag]))
-                    for thread in thread_list:
-                        thread.start()
-                    for thread in thread_list:
-                        thread.join()
-                    print(orchestrator.dag_responses)
-                    print(orchestrator.x)
-                    # results = []
-                    # while not result_queue.empty():
-                    #     result = result_queue.get()
-                    #     results.append(result)
-                    return {"response":orchestrator.dag_responses}
-                        # res = orchestrator.execute_dag(dag)
-                        # return {"response":res,"status":200}
-                except Exception as e:
-                    print(e)
-                    return {"response":"failed","status":400}
-                    # thread_list.append(threading.Thread(target=orchestrator.execute_dag, args=[dag]))
-                # for thread in thread_list:
-                #     thread.start()
-                # for thread in thread_list:
-                #     thread.join()
-                # return {"response": dags}
+        with app.app_context():
+            triggers = validate_trigger.get_trigger_json(trigger_name)
+            if(len(triggers)==0): 
+                return {"response": "the given trigger is not registered in DAGit trigger store"}
             else:
-                functions = triggers[0]['functions']
-                for function in functions:
-                    thread_list.append(threading.Thread(target=orchestrator.execute_action, args=[function]))
-                for thread in thread_list:
-                    thread.start()
-                for thread in thread_list:
-                    thread.join()
+                thread_list = []
+                result_queue = queue.Queue()
+                if(triggers[0]['type']=='dag'):
+                    dags = triggers[0]['dags']
+                    arguments = request.json
+                    try:
+                        for dag in dags:
+                            thread_list.append(threading.Thread(target=orchestrator.execute_dag, args=[dag,arguments]))
+                        for thread in thread_list:
+                            thread.start()
+                        for thread in thread_list:
+                            thread.join()
+                        
+                        return {"response":orchestrator.dag_responses,"status":200}
+                            
+                    except Exception as e:
+                        print(e)
+                        return {"response":"failed","status":400}
+                        
+                else:
+                    try:
+                        functions = triggers[0]['functions']
+                        arguments = request.json
+                        for function in functions:
+                            thread_list.append(threading.Thread(target=orchestrator.execute_action, args=[function,arguments]))
+                        for thread in thread_list:
+                            thread.start()
+                        for thread in thread_list:
+                            thread.join()
 
-                # return {"response": function}
+                        return {"response":orchestrator.function_responses,"status":200}
+                    except Exception as e:
+                        print(e)
+                        return {"response":"failed","status":400}
+                    
 
-        # res = orchestrator.execute_dag(dag_name)
-        # data = {"status": 200,"dag_output":res}
-        # return data
+            
     except Exception as e:
         print(e)
         data = {"status": 404 ,"message":"failed"}
