@@ -1,14 +1,14 @@
 {
-    "name": "toonify",
+    "name": "text-sentiment-analysis",
     "dag": [
         {
-            "node_id": "decode-function",
+            "node_id": "fetch_sentences",
             "properties":
             {
-                "label": "Decode Function",
+                "label": "Fetch Sentences",
                 "primitive": "serial",
                 "condition":{},
-                "next": "image-bilateral-filter",
+                "next": "calculate_sentiment",
                 "branch_1": "",
                 "branch_2": "",
                 "arguments": {},
@@ -16,31 +16,31 @@
             }
         },
         {
-            "node_id": "image-bilateral-filter",
+            "node_id": "calculate_sentiment",
             "properties":
             {
-                "label": "Cartoon effect Action",
+                "label": "Calculate Sentiment Polarity",
                 "primitive": "serial",
                 "condition":{},
-                "next": "encode-function",
+                "next": "create_sentiment_report",
                 "branch_1": "",
                 "branch_2": "",
                 "arguments": {},
-                "outputs_from": ["decode-function"]
+                "outputs_from": ["fetch_sentences"]
             }
         },
         {
-            "node_id": "encode-function",
+            "node_id": "create_sentiment_report",
             "properties":
             {
-                "label": "Combine Images to Video",
+                "label": "Create a sentiment report for sentences",
                 "primitive": "serial",
                 "condition":{},
                 "next": "",
                 "branch_1": "",
                 "branch_2": "",
                 "arguments": {},
-                "outputs_from": ["image-bilateral-filter"]
+                "outputs_from": ["fetch_sentences","calculate_sentiment"]
             }
         }
 

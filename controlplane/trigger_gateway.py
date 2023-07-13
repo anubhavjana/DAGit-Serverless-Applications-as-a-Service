@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 
 import subprocess
+
 import threading
-import queue
 import json
 import os
-import time
-from flask import Flask, request,jsonify,send_file
+from flask import Flask, request,jsonify
 import pymongo
 
 import orchestrator
@@ -14,6 +13,9 @@ import validate_trigger
 
 
 app = Flask(__name__)
+
+lock = threading.Lock()
+
 
 action_url_mappings = {} #Store action->url mappings
 action_properties_mapping = {} #Stores the action name and its corresponding properties
@@ -200,9 +202,9 @@ def view_dags():
     json_data = json.dumps(data, default=str)
     json_string ='{"dag":'+str(json_data)+'}'
     data = json.loads(json_string)
-    # Format the JSON string with indentation
-    formatted_json = json.dumps(data, indent=4)
-    return formatted_json
+    # # Format the JSON string with indentation
+    # formatted_json = json.dumps(data, indent=4)
+    return data
 
 @app.route('/view/triggers',methods=['GET'])
 def view_triggers():
@@ -280,59 +282,89 @@ def execute_action(action_name):
         data = {"status": 404 ,"failure_reason":e}
         return data
 
+# def write_url_params_to_file(url, params, file_path):
+#     # Check if the URL already exists in the file
+#     try:
+#         with open(file_path, 'r') as file:
+#             existing_urls = set(':'.join(line.strip().split(':')[:3]) for line in file if line.strip())
+#             if url in existing_urls:
+#                 return
+#     except FileNotFoundError:
+#         pass
+
+#     # Append the new URL and parameters to the file
+#     try:
+#         with open(file_path, 'a') as file:
+#             file.write(f"{url}:{params}\n")
+#     except IOError:
+#         print("An error occurred while writing to the file.")
+
 
     
 # EXAMPLE URL: http://10.129.28.219:5001/run/mydagtrigger
 @app.route('/run/<trigger_name>', methods=['GET', 'POST'])
 def orchestrate_dag(trigger_name):
     
+    
+    # write_url_params_to_file(request.url, request.json, 'requests.txt')
+    
+
+    orchestrator.dag_responses = []
     try:
         triggers = validate_trigger.get_trigger_json(trigger_name)
-        if(len(triggers)==0): 
+        if len(triggers) == 0:
             return {"response": "the given trigger is not registered in DAGit trigger store"}
         else:
             thread_list = []
-            result_queue = queue.Queue()
-            if(triggers[0]['type']=='dag'):
-                dags = triggers[0]['dags']
-                arguments = request.json
+            if triggers[0]['type'] == 'dag':
+                # dags = triggers[0]['dags']
+                
                 try:
-                    for dag in dags:
-                        thread_list.append(threading.Thread(target=orchestrator.execute_dag, args=[dag,arguments]))
-                    for thread in thread_list:
-                        thread.start()
-                    for thread in thread_list:
-                        thread.join()
+                    
+                    # If only 1 dag execute it directly without thread. 
+                    
+                    no_of_dags = len(triggers[0]['dags'])
+                    
+                    if no_of_dags==1:
+                        orchestrator.execute_dag(triggers[0]['dags'][0],request.json)
+                        return {"response": orchestrator.dag_responses, "status": 200}
                         
-                    return {"response":orchestrator.dag_responses,"status":200}
-                            
+                    else:
+                    
+                        for dag in triggers[0]['dags']:
+                            thread_list.append(threading.Thread(target=orchestrator.execute_dag, args=[dag, request.json]))
+                        for thread in thread_list:
+                            thread.start()
+                        for thread in thread_list:
+                            thread.join()
+
+                        return {"response": orchestrator.dag_responses, "status": 200}
+
                 except Exception as e:
                     print(e)
-                    return {"response":"failed","status":400}
-                        
+                    return {"response": "failed", "status": 400}
+
             else:
                 try:
                     functions = triggers[0]['functions']
                     arguments = request.json
+                    # with lock:
                     for function in functions:
-                        thread_list.append(threading.Thread(target=orchestrator.execute_action, args=[function,arguments]))
+                        thread_list.append(threading.Thread(target=orchestrator.execute_action, args=[function, arguments]))
                     for thread in thread_list:
                         thread.start()
                     for thread in thread_list:
                         thread.join()
 
-                    return {"response":orchestrator.function_responses,"status":200}
+                    return {"response": orchestrator.function_responses, "status": 200}
                 except Exception as e:
                     print(e)
-                    return {"response":"failed","status":400}
-                    
+                    return {"response": "failed", "status": 400}
 
-            
     except Exception as e:
         print(e)
-        data = {"status": 404 ,"message":"failed"}
+        data = {"status": 404, "message": "failed"}
         return data
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001)
-

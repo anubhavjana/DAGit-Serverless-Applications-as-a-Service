@@ -4,32 +4,34 @@ import sys
 import requests
 import uuid
 import re
+import datetime
 import subprocess
 import threading
 import queue
 import redis
-from flask import current_app
 import pickle
 import json
 import os
 import time
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
-from flask import Flask, request,jsonify,send_file
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 import pymongo
 
+import logging
 
-# app = Flask(__name__)
+# Configure the logging settings
+logging.basicConfig(filename='dagit.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
 
 action_url_mappings = {} #Store action->url mappings
 action_properties_mapping = {} #Stores the action name and its corresponding properties
 responses = []
 queue = []
-list_of_func_ids = [] 
 dag_responses = []
+list_of_func_ids = [] 
 function_responses = []
 
-x = 10
 
 
 def preprocess(filename):
@@ -127,19 +129,16 @@ def execute_action(action_name,request):
     
 def execute_dag(dag_name,request):
     
-    # print("------------------------------------DAG START-----------------------------------------------")
-    unique_id = uuid.uuid4()
-    print("DAG UNIQUE ID----------",unique_id)
-    dag_metadata={}
-    dag_metadata["dag_id"] = str(unique_id)
-    dag_metadata["dag_name"] = dag_name
-    list_of_func_ids = []
     ######### Updates the list of action->url mapping ###################
     script_file = './actions.sh'
     subprocess.call(['bash', script_file])
     #####################################################################
     preprocess("action_url.txt")
 
+
+    
+    list_of_func_ids = []
+    
     ### Create in-memory redis storage ###
     redis_instace = create_redis_instance()
     #######################################
@@ -160,20 +159,26 @@ def execute_dag(dag_name,request):
         while(len(queue)!=0):
             flag=flag+1
             action = queue.pop(0)
-            print("ACTION DEQUEUED FROM QUEUE : --->",action)
+            logging.info("Function {} dequed from queue:".format(action))
             ##########################################################
             #               HANDLE THE ACTION                        #
             ##########################################################
             if isinstance(action, str):
                 # if(isinstance(action_properties_mapping[action]['arguments'],list)):
                 #     pass
+                
                 json_data = action_properties_mapping[action]["arguments"]
+                # logging.info("Json request for action {} is {}".format(action,json_data))
                 url = action_url_mappings[action]
+                logging.info("Function {} started execution".format(action))
                 reply = requests.post(url = url,json=json_data,verify=False)
+                # print("Reply:",reply)
+                logging.info("Function {} completed execution || Function ID : {}".format(action,reply.json()["activation_id"]))
+                
                 list_of_func_ids.append(reply.json()["activation_id"])
-                # print("Line 292------------",reply.json()["activation_id"])
                 redis_instace.set(action+"-output",pickle.dumps(reply.json()))
                 action_type = action_properties_mapping[action]["primitive"]
+                
                 
                 if(action_type=="condition"):
                     branching_action = action_properties_mapping[action]["branch_1"]
@@ -181,6 +186,7 @@ def execute_dag(dag_name,request):
                     result=reply.json()["result"]
                     condition_op = action_properties_mapping[action]["condition"]["operator"]
                     if(condition_op=="equals"):
+                        
                         if(isinstance(action_properties_mapping[action]["condition"]["target"], str)):
                             target = action_properties_mapping[action]["condition"]["target"]
                         else:
@@ -218,14 +224,156 @@ def execute_dag(dag_name,request):
 
                             
                     if(condition_op=="greater_than"):
-                        pass 
+                        
+                        if(isinstance(action_properties_mapping[action]["condition"]["target"], str)):
+                            target = action_properties_mapping[action]["condition"]["target"]
+                        else:
+                            target=int(action_properties_mapping[action]["condition"]["target"])
+
+                        if(result>target):
+                            output_list = [] # List to store the output of actions whose outputs are required by downstream operations
+                            queue.append(branching_action)
+                            action_names = action_properties_mapping[branching_action]["outputs_from"] # Get the list of actions whose output will be used
+                            if(len(action_names)==1): # if only output of one action is required
+                                key = action_names[0]+"-output"
+                                output = pickle.loads(redis_instace.get(key))
+                                action_properties_mapping[branching_action]["arguments"] = output
+                            else:
+                                for item in action_names:
+                                    key = item+"-output"
+                                    output = pickle.loads(redis_instace.get(key))
+                                    output_list.append(output)
+                                action_properties_mapping[branching_action]["arguments"] = output_list
+                            
+                        else:
+                            output_list = [] # List to store the output of actions whose outputs are required by downstream operations
+                            queue.append(alternate_action)
+                            action_names = action_properties_mapping[alternate_action]["outputs_from"] # Get the list of actions whose output will be used
+                            if(len(action_names)==1): # if only output of one action is required
+                                key = action_names[0]+"-output"
+                                output = pickle.loads(redis_instace.get(key))
+                                action_properties_mapping[alternate_action]["arguments"] = output
+                            else:
+                                for item in action_names:
+                                    key = item+"-output"
+                                    output = pickle.loads(redis_instace.get(key))
+                                    output_list.append(output)
+                                action_properties_mapping[alternate_action]["arguments"] = output_list
+                                
                     if(condition_op=="greater_than_equals"):
-                        pass
+                        
+                        if(isinstance(action_properties_mapping[action]["condition"]["target"], str)):
+                            target = action_properties_mapping[action]["condition"]["target"]
+                        else:
+                            target=int(action_properties_mapping[action]["condition"]["target"])
+
+                        if(result>=target):
+                            output_list = [] # List to store the output of actions whose outputs are required by downstream operations
+                            queue.append(branching_action)
+                            action_names = action_properties_mapping[branching_action]["outputs_from"] # Get the list of actions whose output will be used
+                            if(len(action_names)==1): # if only output of one action is required
+                                key = action_names[0]+"-output"
+                                output = pickle.loads(redis_instace.get(key))
+                                action_properties_mapping[branching_action]["arguments"] = output
+                            else:
+                                for item in action_names:
+                                    key = item+"-output"
+                                    output = pickle.loads(redis_instace.get(key))
+                                    output_list.append(output)
+                                action_properties_mapping[branching_action]["arguments"] = output_list
+                            
+                        else:
+                            output_list = [] # List to store the output of actions whose outputs are required by downstream operations
+                            queue.append(alternate_action)
+                            action_names = action_properties_mapping[alternate_action]["outputs_from"] # Get the list of actions whose output will be used
+                            if(len(action_names)==1): # if only output of one action is required
+                                key = action_names[0]+"-output"
+                                output = pickle.loads(redis_instace.get(key))
+                                action_properties_mapping[alternate_action]["arguments"] = output
+                            else:
+                                for item in action_names:
+                                    key = item+"-output"
+                                    output = pickle.loads(redis_instace.get(key))
+                                    output_list.append(output)
+                                action_properties_mapping[alternate_action]["arguments"] = output_list
+                    
                     if(condition_op=="less_than"):
-                        pass
+                        
+                        if(isinstance(action_properties_mapping[action]["condition"]["target"], str)):
+                            target = action_properties_mapping[action]["condition"]["target"]
+                        else:
+                            target=int(action_properties_mapping[action]["condition"]["target"])
+
+                        if(result<target):
+                            output_list = [] # List to store the output of actions whose outputs are required by downstream operations
+                            queue.append(branching_action)
+                            action_names = action_properties_mapping[branching_action]["outputs_from"] # Get the list of actions whose output will be used
+                            if(len(action_names)==1): # if only output of one action is required
+                                key = action_names[0]+"-output"
+                                output = pickle.loads(redis_instace.get(key))
+                                action_properties_mapping[branching_action]["arguments"] = output
+                            else:
+                                for item in action_names:
+                                    key = item+"-output"
+                                    output = pickle.loads(redis_instace.get(key))
+                                    output_list.append(output)
+                                action_properties_mapping[branching_action]["arguments"] = output_list
+                            
+                        else:
+                            output_list = [] # List to store the output of actions whose outputs are required by downstream operations
+                            queue.append(alternate_action)
+                            action_names = action_properties_mapping[alternate_action]["outputs_from"] # Get the list of actions whose output will be used
+                            if(len(action_names)==1): # if only output of one action is required
+                                key = action_names[0]+"-output"
+                                output = pickle.loads(redis_instace.get(key))
+                                action_properties_mapping[alternate_action]["arguments"] = output
+                            else:
+                                for item in action_names:
+                                    key = item+"-output"
+                                    output = pickle.loads(redis_instace.get(key))
+                                    output_list.append(output)
+                                action_properties_mapping[alternate_action]["arguments"] = output_list
+                        
+                        
+                    
                     if(condition_op=="less_than_equals"):
-                        pass
+                        if(isinstance(action_properties_mapping[action]["condition"]["target"], str)):
+                            target = action_properties_mapping[action]["condition"]["target"]
+                        else:
+                            target=int(action_properties_mapping[action]["condition"]["target"])
+
+                        if(result<=target):
+                            output_list = [] # List to store the output of actions whose outputs are required by downstream operations
+                            queue.append(branching_action)
+                            action_names = action_properties_mapping[branching_action]["outputs_from"] # Get the list of actions whose output will be used
+                            if(len(action_names)==1): # if only output of one action is required
+                                key = action_names[0]+"-output"
+                                output = pickle.loads(redis_instace.get(key))
+                                action_properties_mapping[branching_action]["arguments"] = output
+                            else:
+                                for item in action_names:
+                                    key = item+"-output"
+                                    output = pickle.loads(redis_instace.get(key))
+                                    output_list.append(output)
+                                action_properties_mapping[branching_action]["arguments"] = output_list
+                            
+                        else:
+                            output_list = [] # List to store the output of actions whose outputs are required by downstream operations
+                            queue.append(alternate_action)
+                            action_names = action_properties_mapping[alternate_action]["outputs_from"] # Get the list of actions whose output will be used
+                            if(len(action_names)==1): # if only output of one action is required
+                                key = action_names[0]+"-output"
+                                output = pickle.loads(redis_instace.get(key))
+                                action_properties_mapping[alternate_action]["arguments"] = output
+                            else:
+                                for item in action_names:
+                                    key = item+"-output"
+                                    output = pickle.loads(redis_instace.get(key))
+                                    output_list.append(output)
+                                action_properties_mapping[alternate_action]["arguments"] = output_list
+                                
                 elif(action_type=="serial"):
+                    
                     next_action = action_properties_mapping[action]["next"]
                     if(next_action!=""):
                         output_list = [] # List to store the output of actions whose outputs are required by downstream operations
@@ -250,18 +398,19 @@ def execute_dag(dag_name,request):
             else:
                 reply = handle_parallel(queue,redis_instace,action_properties_mapping,action)
                 
+    
+    dag_metadata={}
+    dag_metadata["dag_id"] = str(uuid.uuid4())
+    logging.info("DAG Unique ID {}".format(dag_metadata["dag_id"]))
 
+    dag_metadata["dag_name"] = dag_name
                 
-                    
+    
     dag_metadata["function_activation_ids"] = list_of_func_ids       
     
     submit_dag_metadata(dag_metadata)
 
-    print("DAG ID---->FUNC IDS",dag_metadata)
-    print('\n')
-    
     redis_instace.flushdb()
-    print("Cleaned up in-memory intermediate outputs successfully\n")
     
     if(isinstance(reply,list)):
         res = {"dag_id": dag_metadata["dag_id"],
@@ -274,5 +423,5 @@ def execute_dag(dag_name,request):
             }
     
     dag_responses.append(res)
-        
+    
         
